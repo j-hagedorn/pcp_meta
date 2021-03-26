@@ -1,0 +1,203 @@
+---
+title: "Literature Review"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse);library(tidytext);library(topicmodels);library(textclean)
+library(quanteda)
+
+df <- read_csv("../pcp_df.csv")
+
+```
+
+```{r dedup}
+clean_df <-
+  df %>%
+  # Concatenate and undup authors
+  mutate(full_name = paste0(lastname,", ",firstname)) %>%
+  select(-lastname,-firstname,-email,-address) %>%
+  group_by_at(.vars = vars(everything(),-full_name)) %>%
+  summarize(authors = paste(full_name,collapse = "; ")) %>%
+  mutate(
+    document = as.character(pmid),
+    txt = paste0(title,if_else(is.na(abstract),"",abstract)),
+    n_words = str_count(txt, '\\w+')
+  ) %>%
+  ungroup() %>%
+  filter(n_words > 10) %>%
+  select(document,txt) %>%
+  filter(!is.na(txt)) %>%
+  filter(
+    str_detect(
+      txt,
+      regex("person-centered|patient-centered|person-centred|patient-centred",ignore_case = T)
+    )
+  )
+
+# sum(duplicated(tst$pmid))
+```
+
+# Cleaning and parsing text
+
+Cleaning the combined text field from each `document`.  Text cleaning functions used from `stringr` and `textclean` packages, nd may need to be modified based on source and type of data.
+
+Define cleaning function here:
+
+```{r clean_fun}
+clean_text <- function(x){
+  
+  x %>%
+    str_to_lower() %>%
+    str_replace_all("\\[|\\]"," ") %>% # remove square brackets
+    str_replace_all( "[^\\s]*[0-9][^\\s]*"," ") %>% # remove mixed string & number
+    str_replace_all("\\-"," ") %>% # replace dashes, shd be picked up in noun phrases
+    str_squish() %>%
+    replace_number(remove = T) %>% # remove number
+    replace_html(replacement = "") 
+  
+}
+
+```
+
+
+```{r custom_stopwords}
+custom_stopwords <- 
+  c(
+    "patient","patients","person","persons","centered","centred","people","individuals",
+    "medical","health","care","research","study","paper",
+    "literature","review","studies","article","pubmed","medline","embase"
+  ) %>%
+  as_tibble() %>% rename(term = value)
+```
+
+```{r parse}
+clean_df <- clean_df %>% mutate(txt_clean = clean_text(txt)) 
+
+library("spacyr")
+spacy_initialize()
+
+parsed_df <- 
+  clean_df %>%
+  quanteda::corpus(docid_field = "document", text_field = "txt_clean") %>%
+  spacy_parse(pos=T,tag=F,lemma=T,entity=T,nounphrase=T) %>%
+  nounphrase_consolidate()
+
+spacy_finalize()
+
+```
+
+```{r}
+freq_df <-
+  parsed_df %>%
+  filter(pos != "PUNCT") %>%
+  mutate(
+    token = str_to_lower(token),
+    token = str_trim(token)
+  ) %>%
+  # remove common stopwords from noun-phrase elisions
+  mutate(token = str_remove_all(token,"^the_|^a_")) %>%
+  count(doc_id,token, sort = TRUE) %>%
+  group_by(doc_id) %>% 
+  mutate(total = sum(n)) %>%
+  bind_tf_idf(token, doc_id, n) %>%
+  filter(tf_idf > 0.05) %>%
+  anti_join(custom_stopwords, by = c("token" = "term")) %>%
+  anti_join(
+    stop_words, #%>% filter(lexicon == "snowball"), 
+    by = c("token" = "word")
+  )
+```
+
+
+
+# Collocations: Combine common phrases
+
+- Identify collocations in text corpus
+- Filter to include statistically significant occurrences of collocated terms 
+- Replace significant multi-word phrases in the original text with compound versions which will be analyzed as a single unit of meaning
+
+```{r get_colloc_fun}
+
+get_colloc <- function(df,doc_field,text_field,sizes = 2:4){
+  x <- data.frame()
+  for (i in sizes){
+    colloc <-
+      df %>%
+      quanteda::corpus(docid_field = doc_field, text_field = text_field) %>% 
+      textstat_collocations(size = i)
+    x <- bind_rows(x,colloc)
+  }
+  return(x)
+}
+
+```
+
+
+```{r collocations}
+# get collocations before removing stop words; keep repeated phrases
+
+colloc <- clean_df %>% get_colloc(doc_field = "document", text_field = "txt_clean")
+
+# Set threshold for acceptance of collocations after inspecting
+
+colloc_filt <- colloc %>% filter(z > 0)
+
+tst <- 
+  clean_df %>%
+  quanteda::corpus(docid_field = "document", text_field = "txt_clean") %>%
+  quanteda::tokens() %>%
+  quanteda::tokens_compound(pattern = colloc_filt)
+  
+
+```
+
+# Convert to Document-Term Matrix
+
+```{r}
+# add choose # of topics (k = ?)
+
+lda <-
+  freq_df %>%
+  cast_dtm(doc_id,token,n) %>%
+  LDA(k = 15, control = list(seed = 1234))
+
+per_term <- lda %>% tidytext::tidy(matrix = "beta")
+per_doc  <- lda %>% tidytext::tidy(matrix = "gamma")
+
+
+```
+
+
+Develop names for topics.  Since topics are represented as collections of words, 
+
+- `topic_name_scored`: Top 5 words in topic by beta score in model output.
+- `topic_name_unique`: Top 5 words based on *tf-idf* of terms, to find those most unique
+
+Next, summarize topics by top words
+
+```{r}
+
+per_term %>%
+  group_by(topic) %>%
+  top_n(10, desc(rank)) %>%
+  ungroup() %>%
+  arrange(topic,-dist) %>%
+  mutate(term = reorder_within(term, dist, topic)) %>%
+  ggplot(aes(term, dist, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
+
+```
+
+```{r rejoin}
+
+%>% 
+  group_by(doc_id) %>% 
+  summarize(txt_clean = str_c(lemma, collapse = " ")) %>%
+  ungroup() %>%
+  left_join(clean_df %>% select(-txt_clean), by = c("doc_id" = "document")) 
+```
