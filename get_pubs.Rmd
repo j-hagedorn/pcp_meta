@@ -1,0 +1,97 @@
+---
+title: "Get Scholar Cites"
+output: html_document
+date: "2022-12-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r get_faculty}
+
+faculty <-
+  tribble(
+    ~first_name, ~last_name, 
+    #----------|------------
+    "Todd", "Aschenbach", 
+    "Sheila", "Blackman", 
+    "Jennifer", "Cymbola",
+    "Christopher", "Dobson", 
+    "Chelsea", "Duball", 
+    "Barb", "Ellis",
+    "Timothy", "Evans", 
+    "Marianne", "Gerard",
+    "Noor", "Ghiasvand", 
+    "Gary", "Greer",
+    "C", 	"Griffin", 
+    "Sarah", "Hamsher", 
+    "Michael", "Henshaw",
+    "Christina", "Hipshier", 
+    "Elise", "Hollister", 
+    "Robert", "Hollister", 
+    "Jodee", "Hunt", 
+    "Joseph", "Jacquot", 
+    "Jennifer", "Jenkins", 
+    "Paul", "Keenlance", 
+    "Diane", "Laughlin", 
+    "Alexandra", "Locher",
+    "Mark", "Luttenton", 
+    "Jennifer", "Moore",
+    "Roderick", "Morgan",
+    "Alexey", "Nikitin",
+    "Erik", "Nordman",
+    "Priscilla", "Nyamai",
+    "Bruce", "Ostrow",
+    "Amy", "Russell",
+    "Stephen", "Rybczynski",
+    "Star", "Santiago",
+    "Georgette", "Sass",
+    "Jessica", "Schoenherr",
+    "Deb", "Simon",
+    "Eric", "Snyder",
+    "Mark", "Staves",
+    "Patrick", "Thorpe",
+    "Janet", "Vigna",
+    "Heather", "Whitman",
+    "Jennifer", "Winther",
+    "Megan", "Woller-Skar",
+    "Janel", "Zeman"
+  ) %>%
+  mutate(affilitation = "Grand Valley State University")
+
+faculty_list <- list()
+for (i in 1:nrow(faculty)) {
+  try({x <- get_scholar_id(faculty$last_name[i],faculty$first_name[i],faculty$affilitation[i])})
+  faculty_list <- c(faculty_list,x)
+}
+faculty_df <- as_tibble(faculty_list,.name_repair = "minimal") %>% t()
+faculty <- bind_cols(faculty,faculty_df) %>% rename("scholar_id" = `...4`)
+
+rm(list = c("faculty_list","faculty_df"))
+
+```
+
+```{r}
+
+sub_faculty <- faculty %>% filter(!is.na(scholar_id))
+
+pub_df <- as_tibble()
+
+for (i in 1:nrow(sub_faculty)) {
+  x <- get_publications(sub_faculty$scholar_id[i])
+  x <- x %>% mutate(scholar_id = sub_faculty$scholar_id[i])
+  pub_df <- bind_rows(pub_df, x)
+}
+
+
+x <- get_publication_data_extended(pub_df$scholar_id[1],pub_df$pubid[1])
+
+```
+
+
+```{r}
+library(semanticscholar)
+S2_search_papers(keyword = "literature graph")
+```
+
