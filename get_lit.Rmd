@@ -1,0 +1,32 @@
+---
+title: "Untitled"
+output: html_document
+date: "2022-12-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reference/bibliography/citation management: 
+
+- `citr` provides functions and an RStudio addin to search a BibTeX-file to create and insert formatted Markdown citations into the current document. [Link](https://github.com/crsh/citr)
+- `rorcid` is a programmatic interface the Orcid.org API, which can be used for identifying scientific authors and their publications (e.g., by DOI). 
+- `rdatacite` connects to ‘DataCite’, which manages DOIs and metadata for scholarly datasets. 
+- `scholar` provides functions to extract citation data from Google Scholar.
+- `semscholar` wraps the Semantic Scholar RESTful API. Semantic Scholar is a free, nonprofit, academic search engine from the Allen Institute for AI. The client supports search for author profiles and mined metadata of scholarly works including citations, references and topics. [Link](https://github.com/giocomai/zoteror)
+- `rscopus` provides functions to extract citation data from Elsevier Scopus APIs. Convenience functions are also provided for comparing multiple scholars and predicting future h-index values. 
+- `mathpix` convert an image of a formula (typeset or handwritten) via Mathpix webservice to produce the ‘LaTeX’ code. 
+- `zen4R` provides an Interface to ‘Zenodo’ REST API, including management of depositions, attribution of DOIs and upload of files.
+- `zoteror` aims to introduce basic functions to access the Zotero API. Its main goal at this stage is to have enough functions to facilitate resizing the storage space used, by ordering items by attachment size, and by allowing to add items to a collection if certain criteria are met. [Link](https://github.com/giocomai/zoteror)
+
+# Literature: 
+
+- `rplos` is a programmatic interface to the Web Service methods provided by the Public Library of Science journals for search. 
+- `europepmc` connects to the Europe PubMed Central service. 
+- `pubmed.mineR` is a package for text mining of PubMed Abstracts that supports fetching text and XML from PubMed. 
+- `jstor` provides functions and helpers to import metadata, ngrams and full-texts from Data for Research service by JSTOR. 
+- `aRxiv` is a client for the arXiv API, a repository of electronic preprints for computer science, mathematics, physics, quantitative biology, quantitative finance, and statistics. 
+- `roadoi` provides an interface to the Unpaywall API for finding free full-text versions of academic papers. 
+- `rcoreoa` is an interface to the CORE API, a search interface for open access scholarly articles. 
+- `rcrossref` is an interface to Crossref’s API.
